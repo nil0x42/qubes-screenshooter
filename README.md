@@ -1,5 +1,6 @@
 # qubes-screenshooter
 LeakProof screenshot tool for [Qubes OS]
+![](img/qubes-screenshooter_border-stripping.png)
 
 
 ## Features
