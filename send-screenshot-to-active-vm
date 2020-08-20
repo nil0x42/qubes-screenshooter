@@ -1,0 +1,70 @@
+#!/usr/bin/env perl
+# this file is part of qubes-screenshooter, written by nil0x42
+# check newer version @ https://github.com/nil0x42/qubes-screenshooter
+
+use strict;
+use warnings;
+
+# - strip image's EXIF info
+# - strip window borders from image
+# - save screenshot on VM
+# - load screenshot in VM clipboard
+sub vm_screenshot {
+    my $vm = shift;
+    my $filepath = shift;
+    my $filename;
+    ($filename = $filepath) =~s/.*\///s;
+    my $remotepath = "$ENV{HOME}/QubesIncoming/dom0/${filename}";
+
+    # get window border coordinates (yes, perl is ugly).
+    $_ = `xprop -notype -root _NET_ACTIVE_WINDOW`;
+    /^_NET_ACTIVE_WINDOW: window id # (?<id>0x[0-9a-f]+), 0x0$/m
+        or die "unable to get active window\n";
+    $_ = `xwininfo -id "$+{id}" -stats`;
+    /Relative.*X:\s+(?<x>[0-9]+)/m;
+    my $x = "$+{x}";
+    /Relative.*Y:\s+(?<y>[0-9]+)/m;
+    my $y = "$+{y}";
+    /Width:\s+(?<w>[0-9]+)/m;
+    my $w = "$+{w}";
+    /Height:\s+(?<h>[0-9]+)/m;
+    my $h = "$+{h}";
+
+    # prevent leaking VM name & border color, by stripping it
+    system "mogrify -crop ${w}x${h}+${x}+${y} ${filepath}";
+
+    # strip EXIF infos from image (OPSEC)
+    system "mogrify -strip ${filepath}";
+
+    # move image to VM
+    system 'qvm-move-to-vm', $vm, $filepath;
+
+    # send Qubes OS desktop notification
+    system 'notify-send', 'Qubes Screenshot',
+           "Screenshot sent to \'<b>$vm</b>\' VM\'s clipboard\n" .
+           "<small><tt>~/QubesIncoming/dom0/<b>$filename</b></tt></small>";
+
+    # xclip daemon keeps running until another process takes clipboard ownership
+    exec ('qvm-run', '-q', '--', $vm,
+          # "xdg-open $ENV{HOME}/QubesIncoming/dom0/ & " .
+          "printf ${remotepath} | xclip; " .
+          "xclip -sel c -t image/png ${remotepath}"
+          ) or die "qvm-run exec failed\n";
+}
+
+
+sub front_vm {
+    $_ = `xprop -notype -root _NET_ACTIVE_WINDOW`;
+    /^_NET_ACTIVE_WINDOW: window id # (?<id>0x[0-9a-f]+), 0x0$/m
+        or die "unable to get active window\n";
+    $_ = `xprop -id "$+{id}" -notype _QUBES_VMNAME`;
+    if (/^_QUBES_VMNAME = \"(?<vm>[^\"]+)\"$/m) {
+        length $+{vm} or die "empty string VM is invalid\n";
+        return $+{vm};
+    }
+    return undef;
+}
+
+my $vm;
+defined($vm = front_vm) or $vm = 'vault';
+vm_screenshot $vm, shift;
