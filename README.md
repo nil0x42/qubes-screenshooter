@@ -55,6 +55,10 @@ Open **Keyboard Settings** *(on Qubes OS GUI)*:
   * **`Ctrl`+`Print`**
     * `xfce4-screenshooter -r -o /opt/qubes-screenshooter/send-screenshot-to-chosen-vm`
 
+If you are running Qubes 4.2, additional packages are needed in `dom0`:
+```sh
+sudo qubes-dom0-upgrade xwininfo ImageMagick
+```
 
 ## Dependencies & Third-party tools
 
